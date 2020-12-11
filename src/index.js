@@ -18,102 +18,102 @@ app.use(express.static(publicDirectoryPath));
 let count = 0;
 
 io.on('connection', (socket) => {
-    console.log('New webSocket Connection');
+  console.log('New webSocket Connection');
 
-    // socket.emit('countUpdated',count);
+  // socket.emit('countUpdated',count);
 
-    // socket.on('increment', () => {
-    //     count++;
-    //     // socket.emit('countUpdated',count);
-    //     io.emit('countUpdated',count);
+  // socket.on('increment', () => {
+  //     count++;
+  //     // socket.emit('countUpdated',count);
+  //     io.emit('countUpdated',count);
+  // })
+
+  // socket.emit('message', 'welcome!');
+
+  // socket.emit('message', {
+  //      text:'welcome!',
+  //      createdAt: new Date().getTime()
+  //     });
+
+  // socket.emit('message', generateMessage('welcome!'));
+
+  // socket.broadcast.emit('message', 'A new User has joined');
+  // socket.broadcast.emit('message', generateMessage('A new User has joined'));
+
+  // socket.on('join', ({ username, room}, callback) => {
+
+  socket.on('join', (options, callback) => {
+
+    // const { error, user } = addUser({
+    //     id: socket.id,
+    //     username,
+    //     room
     // })
+    const { error, user } = addUser({ id: socket.id, ...options })
 
-    // socket.emit('message', 'welcome!');
+    if (error) {
+      return callback(error)
+    }
 
-    // socket.emit('message', {
-    //      text:'welcome!',
-    //      createdAt: new Date().getTime()
-    //     });
+    socket.join(user.room);
 
-    // socket.emit('message', generateMessage('welcome!'));
+    //socket.emit, io.emit, socket.broadcast.emit
+    //io.to.emit, socket.broadcast.to.emit
+    socket.emit('message', generateMessage('Admin', 'welcome!'));
+    socket.broadcast.to(user.room).emit('message', generateMessage('Admin', `${user.username} has joined!`));
+    io.to(user.room).emit('roomData', {
+      room: user.room,
+      users: getusersInRoom(user.room)
+    });
+    callback();
 
-    // socket.broadcast.emit('message', 'A new User has joined');
-    // socket.broadcast.emit('message', generateMessage('A new User has joined'));
+  })
 
-    // socket.on('join', ({ username, room}, callback) => {
+  socket.on('SendMessage', (msg, callback) => {
 
-    socket.on('join', (options, callback) => {
+    const user = getUser(socket.id);
 
-        // const { error, user } = addUser({
-        //     id: socket.id,
-        //     username,
-        //     room
-        // })
-        const { error, user } = addUser({id: socket.id, ...options }) 
+    const filter = new Filter()
+    if (filter.isProfane(msg)) {
+      return callback('Profanity is not allowed...!');
+    }
 
-        if (error) {
-            return callback(error)
-        }
+    // io.emit('message',msg);
+    io.to(user.room).emit('message', generateMessage(user.username, msg));
+    callback();
+  })
 
-        socket.join(user.room);
+  socket.on('sendLocation', (sendloc, callback) => {
 
-        //socket.emit, io.emit, socket.broadcast.emit
-        //io.to.emit, socket.broadcast.to.emit
-        socket.emit('message', generateMessage('Admin', 'welcome!'));
-        socket.broadcast.to(user.room).emit('message', generateMessage('Admin',`${user.username} has joined!`));
-        io.to(user.room).emit('roomData', {
-            room: user.room,
-            users: getusersInRoom(user.room)
-        });
-        callback();
+    const user = getUser(socket.id);
 
-    })
-
-    socket.on('SendMessage', (msg, callback) => {
-
-        const user = getUser(socket.id);
-
-        const filter = new Filter()
-        if (filter.isProfane(msg)) {
-            return callback('Profanity is not allowed...!');
-        }
-
-        // io.emit('message',msg);
-        io.to(user.room).emit('message', generateMessage(user.username, msg));
-        callback();
-    })
-
-    socket.on('sendLocation', (sendloc, callback) => {
-
-        const user = getUser(socket.id);
-
-        // io.emit('message',`location: ${sendloc.latitude}, ${sendloc.longitude}`);
-        // 'io.emit('locationMessage',`https://google.com/maps?q=${sendloc.latitude},${sendloc.longitude}`);
-        // io.emit('locationMessage',generateLocationMessage(`https://google.com/maps?q=${sendloc.latitude},${sendloc.longitude}`));
-        io.to(user.room).emit('locationMessage',generateLocationMessage( user.username, `https://google.com/maps?q=${sendloc.latitude},${sendloc.longitude}`));
-        callback();
-    })
+    // io.emit('message',`location: ${sendloc.latitude}, ${sendloc.longitude}`);
+    // 'io.emit('locationMessage',`https://google.com/maps?q=${sendloc.latitude},${sendloc.longitude}`);
+    // io.emit('locationMessage',generateLocationMessage(`https://google.com/maps?q=${sendloc.latitude},${sendloc.longitude}`));
+    io.to(user.room).emit('locationMessage', generateLocationMessage(user.username, `https://google.com/maps?q=${sendloc.latitude},${sendloc.longitude}`));
+    callback();
+  })
 
 
-    socket.on('disconnect', () => {
+  socket.on('disconnect', () => {
 
-        const user = removeUser(socket.id);
+    const user = removeUser(socket.id);
 
-        if (user) {
-            // io.emit('message',generateMessage('A user has left..!'));
-            io.to(user.room).emit('message',generateMessage('Admin',`${user.username} has left!`));
-            io.to(user.room).emit('roomData', {
-                room: user.room,
-                users: getusersInRoom(user.room)
-            });
-        }
+    if (user) {
+      // io.emit('message',generateMessage('A user has left..!'));
+      io.to(user.room).emit('message', generateMessage('Admin', `${user.username} has left!`));
+      io.to(user.room).emit('roomData', {
+        room: user.room,
+        users: getusersInRoom(user.room)
+      });
+    }
 
-        // io.emit('message','A user has left..!')
-        // io.emit('message',generateMessage('A user has left..!'));
-    })
+    // io.emit('message','A user has left..!')
+    // io.emit('message',generateMessage('A user has left..!'));
+  })
 })
 
 
 server.listen(port, () => {
-    console.log(`server is up on port :${port}!`);
+  console.log(`server is up on port :${port}!`);
 })
